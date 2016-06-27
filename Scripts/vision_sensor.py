@@ -9,6 +9,10 @@ import vrep,time,sys
 import matplotlib.pyplot as plt
 from PIL import Image as I
 import array
+import ImageChops
+
+def equal(im1, im2):
+    return ImageChops.difference(im1, im2).getbbox() is None
 
 def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
     #Get the handle of the vision sensor
@@ -28,12 +32,21 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
     plotimg = plt.imshow(im,origin='lower')
     #Let some time to Vrep in order to let him send the first image, otherwise the loop will start with an empty image and will crash
     time.sleep(1)
-    while (vrep.simxGetConnectionId(clientID)!=-1): 
+    filename = 1
+    im = None
+    while (vrep.simxGetConnectionId(clientID)!=-1):
         #Get the image of the vision sensor
         res,resolution,image=vrep.simxGetVisionSensorImage(clientID,visionSensorHandle,0,vrep.simx_opmode_buffer)
         #Transform the image so it can be displayed using pyplot
         image_byte_array = array.array('b',image)
+        last_im = im
         im = I.frombuffer("RGB", (resolution[0],resolution[1]), image_byte_array, "raw", "RGB", 0, 1)
+        if (False):# and last_im is None or not equal(last_im, im)):
+          last_im = im
+          fname = str(filename) + ".bmp"
+          print("Creating {s}".format(s=fname))
+          im.save(fname)
+          filename += 1
         #Update the image
         plotimg.set_data(im)
         #Refresh the display
