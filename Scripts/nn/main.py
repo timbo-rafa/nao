@@ -1,42 +1,23 @@
-from perceptron import Perceptron
-from trainer import Trainer
-import random
+from neuralNetwork import NeuralNetwork
 
-training = []
- 
-points = 2000
-count = 0
-xmin = -400
-ymin = -100
-xmax =  400
-ymax =  100
- 
-def f(x):
-  return 0.4*x+1
- 
-def slope():
-  x1 = xmin;
-  y1 = f(x1);
-  x2 = xmax;
-  y2 = f(x2); 
-  return (y2-y1)/(x2-x1)
- 
-ptron = Perceptron(3, 0.001)
- 
-# Constructs training points
-for i in range(0, points):
-  x = random.uniform(xmin, xmax)
-  y = random.uniform(ymin, ymax)
-  answer = 1
-  if y < f(x):
-    answer = -1
-  training.append(Trainer(x, y, answer))
-  ptron.train(training[i].inputs, training[i].answer)
-  weights = ptron.getWeights();
-  x1 = xmin;
-  y1 = (-weights[2] - weights[0]*x1)/weights[1]
-  x2 = xmax;
-  y2 = (-weights[2] - weights[0]*x2)/weights[1]
-  print (y2-y1)/(x2-x1)
- 
-print "Answer: "+str(slope())
+# Blog post example:
+
+nn = NeuralNetwork(2, 2, 2, hidden_layer_weights=[0.15, 0.2, 0.25, 0.3], hidden_layer_bias=0.35, output_layer_weights=[0.4, 0.45, 0.5, 0.55], output_layer_bias=0.6)
+for i in range(10000):
+  nn.train([0.05, 0.1], [0.01, 0.99])
+  print(i, round(nn.calculate_total_error([[[0.05, 0.1], [0.01, 0.99]]]), 9))
+
+# XOR example:
+
+# training_sets = [
+#   [[0, 0], [0]],
+#   [[0, 1], [1]],
+#   [[1, 0], [1]],
+#   [[1, 1], [0]]
+# ]
+
+# nn = NeuralNetwork(len(training_sets[0][0]), 5, len(training_sets[0][1]))
+# for i in range(10000):
+#   training_inputs, training_outputs = random.choice(training_sets)
+#   nn.train(training_inputs, training_outputs)
+#   print(i, nn.calculate_total_error(training_sets))
