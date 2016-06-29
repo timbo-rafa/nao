@@ -102,10 +102,11 @@ def trainNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
     train_set = readTrainSet()
 
     print("Training Neural Network")
-    for _ in repeat(None, TRAIN_REPEAT):
+    for i in range(TRAIN_REPEAT):
+      print("Training {n}/{t}".format(n=i+1,t=TRAIN_REPEAT))
       for t in train_set:
         nn.train(t.inputs, t.answer )
-        print(t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 9))
+        print(" ", t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 9))
 
     for t in train_set:
       print(t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 3))
