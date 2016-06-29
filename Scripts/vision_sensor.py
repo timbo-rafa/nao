@@ -17,13 +17,15 @@ from itertools import repeat
 import math
 import cPickle as pickle
 
-TRAIN_REPEAT=int(8/NeuralNetwork.LEARNING_RATE)
-SAVE_VISION=False
+REPEAT_CONSTANT=int(8/NeuralNetwork.LEARNING_RATE)
+TRAIN_ITERATIONS=20
+TRAIN_SET="img/*.png"
 NN_FILENAME="neuralNetwork.save"
 LOAD_NN=True
 TRAIN_NN=False
 SAVE_NN=False
 COUNTER = 3451
+SAVE_VISION=False
 
 THRESHOLD_POSITIVE = 0.7
 THRESHOLD_NEGATIVE = 0.2
@@ -75,7 +77,7 @@ def assertAnswerStrong(answer):
 
 def readTrainSet():
   train_set = []
-  for filename in glob.glob("img/*.png"):
+  for filename in glob.glob(TRAIN_SET):
     im = I.open(filename)
     width, height = im.size
     print("Loaded " + filename + " {w}x{h}".format(w=width, h=height))
@@ -102,11 +104,13 @@ def trainNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
     train_set = readTrainSet()
 
     print("Training Neural Network")
-    for i in range(TRAIN_REPEAT):
-      print("Training {n}/{t}".format(n=i+1,t=TRAIN_REPEAT))
+    for i in range(TRAIN_ITERATIONS):
+      print("Training {n}/{t}".format(n=i+1,t=TRAIN_ITERATIONS))
       for t in train_set:
         nn.train(t.inputs, t.answer )
-        print(" ", t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 9))
+        if (i%10 == 0):
+          print("  " + t.name + " Error=" + str(
+            round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 9)))
 
     for t in train_set:
       print(t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 3))
@@ -121,6 +125,9 @@ def trainNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
 
 
 def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
+
+  nn = trainNeuralNetwork()
+  print("Neural Network num_inputs:{n}".format(n=nn.num_inputs))
 
   #Get the handle of the vision sensor
   res1,visionSensorHandle=vrep.simxGetObjectHandle(clientID,visionSensorName,vrep.simx_opmode_oneshot_wait)
@@ -139,8 +146,6 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
   plotimg = plt.imshow(im,origin='lower')
   #Let some time to Vrep in order to let him send the first image, otherwise the loop will start with an empty image and will crash
   time.sleep(1)
-
-  nn = trainNeuralNetwork()
   
   filename = 1
   #im = None
