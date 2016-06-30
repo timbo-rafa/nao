@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Jul  9 15:30:54 2015
-
-@author: Pierre Jacquot
-"""
 
 import vrep,time,sys
 import matplotlib.pyplot as plt
@@ -17,23 +12,33 @@ from itertools import repeat
 import math
 import cPickle as pickle
 
-REPEAT_CONSTANT=int(8/NeuralNetwork.LEARNING_RATE)
-TRAIN_ITERATIONS=10
+#number of training iterations
+TRAIN_ITERATIONS=100
+#files used for training
 TRAIN_SET="img/*.png"
+#fille to save the neural network instance
 NN_FILENAME="neuralNetwork.save"
+#load nn from file?
 LOAD_NN=False
+#train nn?
 TRAIN_NN=True
-SAVE_NN=True
+#save nn to file?
+SAVE_NN=False
+#save what the nao sees to use as database
 SAVE_VISION=False
+# counter to use as filename for database files
 COUNTER = 1
-HIDDEN_NEURONS=200
+#number of neurons in hidden layer
+HIDDEN_NEURONS=50
 
-THRESHOLD_POSITIVE = 0.7
+# Thresholds to assert if we (dont) see the plant
+THRESHOLD_POSITIVE = 0.75
 THRESHOLD_NEGATIVE = 0.2
-THRESHOLD_DOUBT_POSITIVE = 0.55
+THRESHOLD_DOUBT_POSITIVE = 0.6
 THRESHOLD_DOUBT_NEGATIVE = 0.4
 
-
+#convert the image into features
+#returns the image's pixels
 def imageIntoFeatures(im, grayscale=True):
   if (grayscale):
     im = im.convert("LA")
@@ -48,13 +53,20 @@ def imageIntoFeatures(im, grayscale=True):
       red.append(p[0]/255.0)
       green.append(p[1]/255.0)
       blue.append(p[2]/255.0)
+    #features will be the red pixels then green pixels then blue pixels
+    #resulting in 3*width*height features
     pixels = list(red + green + blue)
     #print("green sum={s}".format(s=sum(green)))
   return pixels
 
+#is the picture a plant?
+#used for supervised learning
 def isPlantPicture(filename):
   return "y" in filename
 
+#the first output says how sure the network is that the image has a plant
+#the second output says how sure the network is that the image is not a plant
+#both values close to 0.5 in the answer would indicate uncertainty
 def expected_answer(isPlant):
   if isPlant:
     ans = [1.0, 0.0]
@@ -62,10 +74,12 @@ def expected_answer(isPlant):
     ans = [0.0, 1.0]
   return ans
 
+#convert answer to a human readable answer
 def assertAnswer(answer):
   print("I am " + str(round(answer[0],4) * 100) + "% sure I see a plant.")
   print("I am " + str(round(answer[1],4) * 100) + "% sure I don't see a plant.")
 
+#make an affirmation based on network's answer
 def assertAnswerStrong(answer):
   pPlant = answer[0]
   pNotPlant = answer[1]
@@ -84,10 +98,13 @@ def assertAnswerStrong(answer):
 def readTrainSet():
   train_set = []
   for filename in glob.glob(TRAIN_SET):
+    #get the image from file and use the most important central rectangle
     im = I.open(filename).crop((160, 0, 480, 480))
     width, height = im.size
     print("Loaded " + filename + " {w}x{h}".format(w=width, h=height))
+    #extract features from the image(its pixels)
     pixels = imageIntoFeatures(im)
+    #supervised learning: what is the expected answer for this input?
     isPlant = isPlantPicture(filename)
     answer = expected_answer(isPlant)
     train_set.append( Trainer( filename, pixels, answer ) )
@@ -108,14 +125,20 @@ def newNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
     train_set = readTrainSet()
     if (not load):
       n_neurons = len(train_set[0].inputs)
+      #initialize nn with
+      # number_of_inputs = number of pixels = width * height
+      # number of neurons of hidden layer = HIDDEN_NEURONS
+      # number of outputs = 2
       nn = NeuralNetwork(n_neurons, HIDDEN_NEURONS, 2)
 
     print("Training Neural Network")
     for i in range(TRAIN_ITERATIONS):
       print("Training {n}/{t}".format(n=i+1,t=TRAIN_ITERATIONS))
       for t in train_set:
+        # train neural network with images
         nn.train(t.inputs, t.answer )
         if (i%10 == 0):
+          #print how much nn differ from expected answer
           print("  " + t.name + " Error=" + str(
             round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 9)))
 
@@ -128,7 +151,6 @@ def newNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
     with open(NN_FILENAME, 'wb') as f:
       pickle.dump(nn, f , pickle.HIGHEST_PROTOCOL)
 
-  #sys.exit()
   if (nn):
     pass
     #nn.inspect()
@@ -176,9 +198,11 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
     #The mandatory pause ! (or it'll not work)
     plt.pause(pause)
     if (nn):
+      # feed the neural network with the image and get its prediction (if it has a plant)
       answer = nn.feed_forward(imageIntoFeatures(im))
-      assertAnswer(answer)
+      #assertAnswer(answer)
       assertAnswerStrong(answer)
+
     if (SAVE_VISION and count % 60 == 0):
       name = str(count//60) + ".png"
       print("Saving " + name)
