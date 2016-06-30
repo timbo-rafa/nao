@@ -18,14 +18,15 @@ import math
 import cPickle as pickle
 
 REPEAT_CONSTANT=int(8/NeuralNetwork.LEARNING_RATE)
-TRAIN_ITERATIONS=20
+TRAIN_ITERATIONS=10
 TRAIN_SET="img/*.png"
 NN_FILENAME="neuralNetwork.save"
-LOAD_NN=True
-TRAIN_NN=False
-SAVE_NN=False
-COUNTER = 3451
+LOAD_NN=False
+TRAIN_NN=True
+SAVE_NN=True
 SAVE_VISION=False
+COUNTER = 1
+HIDDEN_NEURONS=200
 
 THRESHOLD_POSITIVE = 0.7
 THRESHOLD_NEGATIVE = 0.2
@@ -33,17 +34,22 @@ THRESHOLD_DOUBT_POSITIVE = 0.55
 THRESHOLD_DOUBT_NEGATIVE = 0.4
 
 
-def imageIntoFeatures(im):
-  #im = im.convert("LA")
+def imageIntoFeatures(im, grayscale=True):
+  if (grayscale):
+    im = im.convert("LA")
   red = []
   green = []
   blue = []
-  for p in list(im.getdata()):
-    red.append(p[0])
-    green.append(p[1])
-    blue.append(p[2])
-  #gray_pixels = [p[0] for p in list(im.getdata())]
-  pixels = list(red + green + blue)
+  
+  if (grayscale):
+    pixels = [p[0] for p in list(im.getdata())]
+  else:
+    for p in list(im.getdata()):
+      red.append(p[0]/255.0)
+      green.append(p[1]/255.0)
+      blue.append(p[2]/255.0)
+    pixels = list(red + green + blue)
+    #print("green sum={s}".format(s=sum(green)))
   return pixels
 
 def isPlantPicture(filename):
@@ -78,7 +84,7 @@ def assertAnswerStrong(answer):
 def readTrainSet():
   train_set = []
   for filename in glob.glob(TRAIN_SET):
-    im = I.open(filename)
+    im = I.open(filename).crop((160, 0, 480, 480))
     width, height = im.size
     print("Loaded " + filename + " {w}x{h}".format(w=width, h=height))
     pixels = imageIntoFeatures(im)
@@ -90,18 +96,19 @@ def readTrainSet():
 
   return train_set
 
-def trainNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
+def newNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
 
   nn = None
   if (load):
     with open(NN_FILENAME, 'rb') as f:
       nn = pickle.load(f)
     print("Loaded neural network from file: " + NN_FILENAME)
-  else:
-    nn = NeuralNetwork(len(train_set[0].inputs), 1, 2)
 
   if (train):
     train_set = readTrainSet()
+    if (not load):
+      n_neurons = len(train_set[0].inputs)
+      nn = NeuralNetwork(n_neurons, HIDDEN_NEURONS, 2)
 
     print("Training Neural Network")
     for i in range(TRAIN_ITERATIONS):
@@ -116,18 +123,22 @@ def trainNeuralNetwork(load=LOAD_NN, train=TRAIN_NN, save=SAVE_NN):
       print(t.name, round(nn.calculate_total_error([[ t.inputs, t.answer ]] ), 3))
       assertAnswer(nn.feed_forward(t.inputs))
 
-  if (save):
+  if (save and nn):
+    print("Saving Neural Network as " + NN_FILENAME)
     with open(NN_FILENAME, 'wb') as f:
       pickle.dump(nn, f , pickle.HIGHEST_PROTOCOL)
 
   #sys.exit()
+  if (nn):
+    pass
+    #nn.inspect()
   return nn
 
 
 def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
 
-  nn = trainNeuralNetwork()
-  print("Neural Network num_inputs:{n}".format(n=nn.num_inputs))
+  nn = newNeuralNetwork()
+  #print("Neural Network num_inputs:{n}".format(n=nn.num_inputs))
 
   #Get the handle of the vision sensor
   res1,visionSensorHandle=vrep.simxGetObjectHandle(clientID,visionSensorName,vrep.simx_opmode_oneshot_wait)
@@ -140,6 +151,7 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
   res,resolution,image=vrep.simxGetVisionSensorImage(clientID,visionSensorHandle,0,vrep.simx_opmode_buffer)
   im = I.new("RGB", (resolution[0], resolution[1]), "white")
   #Give a title to the figure
+  im = im.crop((160, 0, 480, 480))
   fig = plt.figure(1)    
   fig.canvas.set_window_title(visionSensorName)
   #inverse the picture
@@ -147,8 +159,6 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
   #Let some time to Vrep in order to let him send the first image, otherwise the loop will start with an empty image and will crash
   time.sleep(1)
   
-  filename = 1
-  #im = None
   count = COUNTER
   while (vrep.simxGetConnectionId(clientID)!=-1):
     #Get the image of the vision sensor
@@ -156,8 +166,7 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
     #Transform the image so it can be displayed using pyplot
     image_byte_array = array.array('b',image)
     im = I.frombuffer("RGB", (resolution[0],resolution[1]), image_byte_array, "raw", "RGB", 0, 1)
-    # Grayscale
-    #im = im.convert('LA')
+    im = im.crop((160, 0, 480, 480))
     #Update the image
 
     plotimg.set_data(im)
@@ -166,11 +175,12 @@ def streamVisionSensor(visionSensorName,clientID,pause=0.0001):
     plt.show()
     #The mandatory pause ! (or it'll not work)
     plt.pause(pause)
-    answer = nn.feed_forward(imageIntoFeatures(im))
-    assertAnswer(answer)
-    assertAnswerStrong(answer)
-    if (SAVE_VISION and count % 100 == 0):
-      name = str(count//100) + ".png"
+    if (nn):
+      answer = nn.feed_forward(imageIntoFeatures(im))
+      assertAnswer(answer)
+      assertAnswerStrong(answer)
+    if (SAVE_VISION and count % 60 == 0):
+      name = str(count//60) + ".png"
       print("Saving " + name)
       im.save(name)
     count += 1
